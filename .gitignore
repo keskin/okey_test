@@ -130,3 +130,5 @@ dmypy.json
 # pysen
 .pysen/
 pysen.yaml
+
+docs/

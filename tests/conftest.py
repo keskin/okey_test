@@ -1,14 +1,16 @@
-# tests/conftest.py - v4
 import pytest
-
-# 'app' nesnesini doğrudan import ediyoruz.
+from app import main
 from app.main import app as fastapi_app
 
 @pytest.fixture(scope="session")
 def anyio_backend():
     return "asyncio"
 
-# Bu fixture, test edilecek olan FastAPI uygulamasını sağlar.
 @pytest.fixture(scope="function")
 def app():
+    # Her testten önce state'i sıfırla
+    main.connected_players.clear()
+    main.player_ids.clear()
+    main.turn_index = 0
+    main.game_started = False
     return fastapi_app
