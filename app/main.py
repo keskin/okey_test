@@ -18,6 +18,10 @@ class GameState:
         self.player_order.append(player_id)
 
     def remove_player(self, player_id: str):
+        # If the disconnected player had the turn, nullify it so a new player can take over.
+        if self.turn == player_id:
+            self.turn = None # The turn is now vacant.
+
         if player_id in self.players:
             del self.players[player_id]
         if player_id in self.player_order:
@@ -35,19 +39,14 @@ class GameState:
 
     def next_turn(self):
         if not self.turn or not self.player_order:
+            self.turn = None
             return
         try:
             current_index = self.player_order.index(self.turn)
             next_index = (current_index + 1) % len(self.player_order)
             self.turn = self.player_order[next_index]
         except ValueError:
-            # This can happen if the current player disconnects.
-            # Reset to the first player in the list.
-            if self.player_order:
-                self.turn = self.player_order[0]
-            else:
-                self.turn = None
-
+            self.turn = self.player_order[0] if self.player_order else None
 
     def to_dict(self):
         return {
@@ -78,19 +77,31 @@ class ConnectionManager:
             "game_state": self.game_state.to_dict()
         })
 
+        # If 4 players connect for the first time, start the game.
         if len(self.game_state.players) == 4 and not self.game_state.game_started:
             self.game_state.start_game()
             await self.broadcast(json.dumps({
                 "type": "game_started",
                 "turn": self.game_state.turn
             }))
+        # If a new player joins a started game and the turn is vacant, give them the turn.
+        elif self.game_state.game_started and self.game_state.turn is None:
+            self.game_state.turn = player_id
+            await self.broadcast(json.dumps({
+                "type": "turn_update",
+                "turn": self.game_state.turn
+            }))
 
-    def disconnect(self, websocket: WebSocket):
+
+    async def disconnect(self, websocket: WebSocket):
         player_id = self.game_state.get_player_id_by_websocket(websocket)
         if player_id:
+            print(f"Player {player_id} disconnecting.")
             self.game_state.remove_player(player_id)
-            print(f"Player {player_id} disconnected.")
-            # Don't broadcast disconnection in this version to keep test simple
+            await self.broadcast(json.dumps({
+                "type": "player_disconnected",
+                "player_id": player_id
+            }))
 
     async def broadcast(self, message: str):
         websockets = list(self.game_state.players.values())
@@ -124,7 +135,7 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             await manager.handle_message(websocket, data)
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
     except Exception as e:
         print(f"Error in websocket endpoint: {e}")
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)

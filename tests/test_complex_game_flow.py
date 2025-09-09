@@ -70,10 +70,14 @@ async def player_client(
 
 
 @pytest.mark.anyio
-async def test_4_player_game_flow(app):
+async def test_4_player_game_flow(app, monkeypatch):
     """
     Tests the entire 4-player game scenario from connection to a full round of moves.
     """
+    # Reset global state to ensure test isolation
+    from app.main import manager
+    monkeypatch.setattr(manager, "game_state", type(manager.game_state)())
+    monkeypatch.setattr(manager, "player_counter", 0)
     all_messages = {}
     events = {
         "P1_connected": anyio.Event(),
