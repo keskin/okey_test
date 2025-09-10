@@ -1,3 +1,4 @@
+# tests/conftest.py
 import pytest
 from app import main
 from app.main import app as fastapi_app

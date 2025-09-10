@@ -1,47 +1,5 @@
 import pytest
-import json
-import json
-from httpx import AsyncClient
-from httpx_ws import aconnect_ws
-from httpx_ws.transport import ASGIWebSocketTransport
-
-class GameClient:
-    def __init__(self, app, player_id: str):
-        self.app = app
-        self.player_id = player_id
-        self.client = None
-        self._ws_cm = None
-        self.ws = None
-
-    async def __aenter__(self):
-        transport = ASGIWebSocketTransport(app=self.app)
-        self.client = AsyncClient(transport=transport, base_url="http://test")
-        self._ws_cm = aconnect_ws("/ws", self.client)
-        self.ws = await self._ws_cm.__aenter__()
-
-        # İlk mesaj initial_state olmalı
-        msg = await self.ws.receive_text()
-        data = json.loads(msg)
-        assert data["type"] == "initial_state"
-        assert data["player_id"] == self.player_id
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        if self._ws_cm:
-            await self._ws_cm.__aexit__(exc_type, exc, tb)
-        if self.client:
-            await self.client.aclose()
-
-    async def send(self, msg: dict):
-        if self.ws:
-            await self.ws.send_text(json.dumps(msg))
-
-    async def recv(self) -> dict:
-        if self.ws:
-            return json.loads(await self.ws.receive_text())
-        return {}
-
-
+from tests.utils.game_client import GameClient
 
 @pytest.mark.anyio
 async def test_full_game_flow(app):

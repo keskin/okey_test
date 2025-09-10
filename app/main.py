@@ -1,3 +1,4 @@
+# app/main.py
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import json
 from typing import List
@@ -11,14 +12,13 @@ turn_index: int = 0
 game_started: bool = False
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+@app.websocket("/ws/{player_id}")
+async def websocket_endpoint(websocket: WebSocket, player_id: str):
     global connected_players, player_ids, turn_index, game_started
 
     await websocket.accept()
 
     # Oyuncu kimliği belirle
-    player_id = f"P{len(connected_players) + 1}"
     connected_players.append(websocket)
     player_ids.append(player_id)
 
@@ -63,6 +63,14 @@ async def websocket_endpoint(websocket: WebSocket):
                             "next": next_player
                         }))
     except WebSocketDisconnect:
-        idx = player_ids.index(player_id)
-        del connected_players[idx]
-        del player_ids[idx]
+        if player_id in player_ids:
+            idx = player_ids.index(player_id)
+            del connected_players[idx]
+            del player_ids[idx]
+
+            # Diğer oyunculara bildir
+            for ws in connected_players:
+                await ws.send_text(json.dumps({
+                    "type": "player_disconnected",
+                    "player_id": player_id
+                }))
